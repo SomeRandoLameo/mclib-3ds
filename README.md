@@ -1,15 +1,15 @@
-# mclib
+# mclib-3ds
 C++ library for connecting to Minecraft servers.
 
 ## Features
 - Full protocol for Minecraft 1.10 through 1.12.2
 - Premium and offline mode
-- Yggdrasil API
-- Logging in with passwords or tokens
+- Yggdrasil API (*THE MS AUTH IS NOT YET SUPPORTED*)
+- Logging in with passwords or tokens (*THE MS AUTH IS NOT YET SUPPORTED*)
 - Reading and using token from launcher
 - Encryption
 - Compression
-- Log in to Forge servers
+- Log in to Forge servers (*THE MS AUTH IS NOT YET SUPPORTED*)
 - World data
 - Entity data
 - Basic inventory use
