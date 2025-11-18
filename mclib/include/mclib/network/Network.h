@@ -1,6 +1,18 @@
 #ifndef NETWORK_NETWORK_H_
 #define NETWORK_NETWORK_H_
 
+//Added 3DS compatibility
+#include <3ds.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+
+/*
+This got removed for 3DS compatibility
 #ifdef _WIN32
 #include <WS2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
@@ -13,20 +25,21 @@
 #include <fcntl.h>
 #endif
 
+*/ 
 #include <mclib/network/Socket.h>
 #include <mclib/network/IPAddress.h>
 #include <mclib/network/UDPSocket.h>
 #include <mclib/network/TCPSocket.h>
 
 namespace mc {
-namespace network {
+    namespace network {
 
-class Dns {
-public:
+        class Dns {
+        public:
     static MCLIB_API IPAddresses Resolve(const std::string& host);
-};
+        };
 
-} // ns network
+    } // ns network
 } // ns mc
 
 #endif
