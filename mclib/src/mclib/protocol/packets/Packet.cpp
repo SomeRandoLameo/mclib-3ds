@@ -2540,7 +2540,7 @@ ClientStatusPacket::ClientStatusPacket(Action action) : m_Action(action) {
 }
 
 DataBuffer ClientStatusPacket::Serialize() const {
-    VarInt action(m_Action);
+    VarInt action((s8)m_Action);
     DataBuffer buffer;
 
     buffer << m_Id;
@@ -2559,8 +2559,8 @@ ClientSettingsPacket::ClientSettingsPacket(const std::wstring& locale, u8 viewDi
 DataBuffer ClientSettingsPacket::Serialize() const {
     MCString locale(m_Locale);
     DataBuffer buffer;
-    VarInt chatMode((int)m_ChatMode);
-    VarInt hand((int)m_MainHand);
+    VarInt chatMode((s32)m_ChatMode);
+    VarInt hand((s32)m_MainHand);
 
     buffer << m_Id;
     buffer << locale;
@@ -2660,7 +2660,7 @@ UseEntityPacket::UseEntityPacket(EntityId target, Action action, Hand hand, Vect
 DataBuffer UseEntityPacket::Serialize() const {
     DataBuffer buffer;
     VarInt target(m_Target);
-    VarInt type((int)m_Action);
+    VarInt type((s32)m_Action);
 
     buffer << m_Id;
     buffer << target;
@@ -2673,7 +2673,7 @@ DataBuffer UseEntityPacket::Serialize() const {
     }
 
     if (m_Action == Action::Interact || m_Action == Action::InteractAt) {
-        VarInt hand((int)m_Hand);
+        VarInt hand((s32)m_Hand);
         buffer << hand;
     }
 
@@ -2869,7 +2869,7 @@ ResourcePackStatusPacket::ResourcePackStatusPacket(Result result)
 
 DataBuffer ResourcePackStatusPacket::Serialize() const {
     DataBuffer buffer;
-    VarInt result((int)m_Result);
+    VarInt result((s32)m_Result);
 
     buffer << m_Id << result;
 
@@ -2938,7 +2938,7 @@ AnimationPacket::AnimationPacket(Hand hand)
 
 DataBuffer AnimationPacket::Serialize() const {
     DataBuffer buffer;
-    VarInt hand((int)m_Hand);
+    VarInt hand((s32)m_Hand);
 
     buffer << m_Id << hand;
 
@@ -2968,7 +2968,7 @@ PlayerBlockPlacementPacket::PlayerBlockPlacementPacket(Vector3i position, Face f
 DataBuffer PlayerBlockPlacementPacket::Serialize() const {
     DataBuffer buffer;
     Position location((s32)m_Position.x, (s32)m_Position.y, (s32)m_Position.z);
-    VarInt face((u8)m_Face), hand((int)m_Hand);
+    VarInt face((s8)m_Face), hand((s32)m_Hand);
 
     buffer << m_Id;
     buffer << location;
@@ -2989,7 +2989,7 @@ UseItemPacket::UseItemPacket(Hand hand)
 
 DataBuffer UseItemPacket::Serialize() const {
     DataBuffer buffer;
-    VarInt hand((int)m_Hand);
+    VarInt hand((s32)m_Hand);
 
     buffer << m_Id << hand;
 

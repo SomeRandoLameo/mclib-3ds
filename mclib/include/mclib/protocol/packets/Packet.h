@@ -44,7 +44,7 @@ protected:
 
 public:
     Packet() noexcept 
-        : m_Id(0xFF), 
+        : m_Id((s8)0xFF), 
           m_ProtocolState(protocol::State::Play), 
           m_Connection(nullptr), 
           m_ProtocolVersion(protocol::Version::Minecraft_1_11_2) 

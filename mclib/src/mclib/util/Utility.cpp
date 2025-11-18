@@ -170,7 +170,7 @@ s64 GetTime() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
-inventory::Slot CreateFirework(bool flicker, bool trail, u8 type, u8 duration, std::vector<int> colors, const std::string& name = "") {
+inventory::Slot CreateFirework(bool flicker, bool trail, u8 type, u8 duration, std::vector<s32> colors, const std::string& name = "") {
     using namespace nbt;
 
     NBT nbt;

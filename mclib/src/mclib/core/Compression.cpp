@@ -46,7 +46,7 @@ DataBuffer CompressionZ::Compress(DataBuffer& buffer) {
 
     if (buffer.GetSize() < m_CompressionThreshold) {
         // Don't compress since it's a small packet
-        VarInt dataLength(0);
+        VarInt dataLength((s32)0);
         VarInt packetLength((s32)(buffer.GetSize() + dataLength.GetSerializedLength()));
 
         packet << packetLength;
