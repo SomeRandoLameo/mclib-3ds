@@ -1,184 +1,272 @@
-#include <mclib/core/Encryption.h>
+#include "Encryption.h"
 
-#include <mclib/common/DataBuffer.h>
+#include "../common/DataBuffer.h"
 
 #include <algorithm>
 #include <random>
 #include <functional>
-#include <openssl/aes.h>
-#include <openssl/rsa.h>
-#include <openssl/x509.h>
+#include <cstring>
+
+// mbedTLS headers instead of OpenSSL
+#include "mbedtls/aes.h"
+#include "mbedtls/rsa.h"
+#include "mbedtls/pk.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/base64.h"
 
 namespace mc {
-namespace core {
+    namespace core {
 
-class RandomGenerator {
-private:
-    std::random_device m_RandomDevice;
-    std::mt19937 m_Generator;
+        class RandomGenerator {
+        private:
+            std::random_device m_RandomDevice;
+            std::mt19937 m_Generator;
 
-public:
-    RandomGenerator() : m_RandomDevice(), m_Generator(m_RandomDevice())
-    {
-    }
+        public:
+            RandomGenerator() : m_RandomDevice(), m_Generator(m_RandomDevice())
+            {
+            }
 
-    RandomGenerator(unsigned int seed) : m_RandomDevice(), m_Generator(seed)
-    {
-    }
+            RandomGenerator(unsigned int seed) : m_RandomDevice(), m_Generator(seed)
+            {
+            }
 
-    unsigned int GetInt(unsigned int min, unsigned int max) {
-        std::uniform_int_distribution<unsigned int> distr(min, max);
-        return distr(m_Generator);
-    }
-};
+            unsigned int GetInt(unsigned int min, unsigned int max) {
+                std::uniform_int_distribution<unsigned int> distr(min, max);
+                return distr(m_Generator);
+            }
+        };
 
-DataBuffer EncryptionStrategyNone::Encrypt(const DataBuffer& buffer) {
-    return buffer;
-}
+        // CFB8 implementation for mbedTLS (since mbedTLS doesn't have CFB8, only CFB128)
+        class AES_CFB8 {
+        private:
+            mbedtls_aes_context m_aes_ctx;
+            unsigned char m_iv[16];
 
-DataBuffer EncryptionStrategyNone::Decrypt(const DataBuffer& buffer) {
-    return buffer;
-}
+        public:
+            AES_CFB8() {
+                mbedtls_aes_init(&m_aes_ctx);
+            }
 
-class EncryptionStrategyAES::Impl {
-private:
-    RandomGenerator m_RNG;
-    EVP_CIPHER_CTX* m_EncryptCTX;
-    EVP_CIPHER_CTX* m_DecryptCTX;
-    unsigned int m_BlockSize;
+            ~AES_CFB8() {
+                mbedtls_aes_free(&m_aes_ctx);
+            }
 
-    protocol::packets::out::EncryptionResponsePacket* m_ResponsePacket;
+            int setkey_enc(const unsigned char* key, unsigned int keybits) {
+                return mbedtls_aes_setkey_enc(&m_aes_ctx, key, keybits);
+            }
 
-    struct {
-        unsigned char* key;
-        unsigned int len;
-    } m_PublicKey;
+            int setkey_dec(const unsigned char* key, unsigned int keybits) {
+                return mbedtls_aes_setkey_dec(&m_aes_ctx, key, keybits);
+            }
 
-    struct {
-        unsigned char key[AES_BLOCK_SIZE];
-        unsigned int len;
-    } m_SharedSecret;
+            void set_iv(const unsigned char* iv) {
+                memcpy(m_iv, iv, 16);
+            }
 
-    bool Initialize(const std::string& publicKey, const std::string& verifyToken) {
-        // Store received public key
-        m_PublicKey.len = publicKey.length();
-        m_PublicKey.key = new unsigned char[m_PublicKey.len];
-        std::copy(publicKey.begin(), publicKey.end(), m_PublicKey.key);
+            int crypt_cfb8(int mode, size_t length, unsigned char* output, const unsigned char* input) {
+                unsigned char keystream[16];
+                size_t n;
 
-        RSA* rsa = d2i_RSA_PUBKEY(NULL, (const unsigned char**)&m_PublicKey.key, m_PublicKey.len);
+                for (n = 0; n < length; n++) {
+                    // Encrypt the IV to get keystream
+                    int ret = mbedtls_aes_crypt_ecb(&m_aes_ctx, MBEDTLS_AES_ENCRYPT, m_iv, keystream);
+                    if (ret != 0) return ret;
 
-        // Generate random shared secret
-        m_SharedSecret.len = AES_BLOCK_SIZE;
-        std::generate(m_SharedSecret.key,
-            m_SharedSecret.key + m_SharedSecret.len,
-            std::bind(&RandomGenerator::GetInt, &m_RNG, 0, 255));
+                    if (mode == MBEDTLS_AES_DECRYPT) {
+                        // For decryption: shift IV first, then XOR
+                        memmove(m_iv, m_iv + 1, 15);
+                        m_iv[15] = input[n];
+                        output[n] = input[n] ^ keystream[0];
+                    } else {
+                        // For encryption: XOR first, then shift IV
+                        output[n] = input[n] ^ keystream[0];
+                        memmove(m_iv, m_iv + 1, 15);
+                        m_iv[15] = output[n];
+                    }
+                }
+                return 0;
+            }
+        };
 
-        int rsaSize = RSA_size(rsa);
+        DataBuffer EncryptionStrategyNone::Encrypt(const DataBuffer& buffer) {
+            return buffer;
+        }
 
-        std::string encryptedSS;
-        std::string encryptedToken;
+        DataBuffer EncryptionStrategyNone::Decrypt(const DataBuffer& buffer) {
+            return buffer;
+        }
 
-        encryptedSS.resize(rsaSize);
-        encryptedToken.resize(rsaSize);
+        class EncryptionStrategyAES::Impl {
+        private:
+            RandomGenerator m_RNG;
+            AES_CFB8 m_EncryptCTX;
+            AES_CFB8 m_DecryptCTX;
 
-        // Encrypt the shared secret with public key
-        RSA_public_encrypt(AES_BLOCK_SIZE, m_SharedSecret.key, (unsigned char*)&encryptedSS[0], rsa, RSA_PKCS1_PADDING);
-        // Encrypt the verify token with public key
-        RSA_public_encrypt(verifyToken.length(), (const unsigned char*)verifyToken.c_str(), (unsigned char*)&encryptedToken[0], rsa, RSA_PKCS1_PADDING);
-        RSA_free(rsa);
+            // mbedTLS random number generation
+            mbedtls_entropy_context m_entropy;
+            mbedtls_ctr_drbg_context m_ctr_drbg;
 
-        // Initialize AES encryption and decryption
-        if (!(m_EncryptCTX = EVP_CIPHER_CTX_new()))
-            return false;
+            protocol::packets::out::EncryptionResponsePacket* m_ResponsePacket;
 
-        if (!(EVP_EncryptInit_ex(m_EncryptCTX, EVP_aes_128_cfb8(), nullptr, m_SharedSecret.key, m_SharedSecret.key)))
-            return false;
+            struct {
+                unsigned char* key;
+                unsigned int len;
+            } m_PublicKey;
 
-        if (!(m_DecryptCTX = EVP_CIPHER_CTX_new()))
-            return false;
+            struct {
+                unsigned char key[16]; // AES-128 = 16 bytes
+                unsigned int len;
+            } m_SharedSecret;
 
-        if (!(EVP_DecryptInit_ex(m_DecryptCTX, EVP_aes_128_cfb8(), nullptr, m_SharedSecret.key, m_SharedSecret.key)))
-            return false;
+            bool Initialize(const std::string& publicKey, const std::string& verifyToken) {
+                // Initialize random number generator
+                mbedtls_entropy_init(&m_entropy);
+                mbedtls_ctr_drbg_init(&m_ctr_drbg);
 
-        m_BlockSize = EVP_CIPHER_block_size(EVP_aes_128_cfb8());
+                const char* pers = "minecraft_aes";
+                int ret = mbedtls_ctr_drbg_seed(&m_ctr_drbg, mbedtls_entropy_func, &m_entropy,
+                                                (const unsigned char*)pers, strlen(pers));
+                if (ret != 0) return false;
 
-        m_ResponsePacket = new protocol::packets::out::EncryptionResponsePacket(encryptedSS, encryptedToken);
-        return true;
-    }
+                // Parse the public key (assuming DER format)
+                mbedtls_pk_context pk;
+                mbedtls_pk_init(&pk);
 
-public:
-    Impl(const std::string& publicKey, const std::string& verifyToken)
-        : m_EncryptCTX(nullptr), m_DecryptCTX(nullptr), m_ResponsePacket(nullptr)
-    {
-        m_PublicKey.key = nullptr;
-        Initialize(publicKey, verifyToken);
-    }
+                ret = mbedtls_pk_parse_public_key(&pk, (const unsigned char*)publicKey.c_str(),
+                                                  publicKey.length() + 1);
+                if (ret != 0) {
+                    mbedtls_pk_free(&pk);
+                    return false;
+                }
 
-    ~Impl() {
-        if (m_ResponsePacket)
-            delete m_ResponsePacket;
+                // Generate random shared secret
+                m_SharedSecret.len = 16; // AES-128
+                ret = mbedtls_ctr_drbg_random(&m_ctr_drbg, m_SharedSecret.key, m_SharedSecret.len);
+                if (ret != 0) {
+                    mbedtls_pk_free(&pk);
+                    return false;
+                }
 
-        EVP_CIPHER_CTX_free(m_EncryptCTX);
-        EVP_CIPHER_CTX_free(m_DecryptCTX);
+                // Get RSA context from pk context
+                mbedtls_rsa_context* rsa = mbedtls_pk_rsa(pk);
+                size_t rsa_size = mbedtls_rsa_get_len(rsa);
 
-        m_EncryptCTX = nullptr;
-        m_DecryptCTX = nullptr;
-    }
+                std::string encryptedSS;
+                std::string encryptedToken;
+                encryptedSS.resize(rsa_size);
+                encryptedToken.resize(rsa_size);
 
-    DataBuffer encrypt(const DataBuffer& buffer) {
-        DataBuffer result;
-        int size = 0;
+                size_t olen;
 
-        result.Resize(buffer.GetSize() + m_BlockSize);
-        EVP_EncryptUpdate(m_EncryptCTX, &result[0], &size, &buffer[0], buffer.GetSize());
-        result.Resize(size);
+                // Encrypt the shared secret with public key
+                ret = mbedtls_rsa_pkcs1_encrypt(rsa, mbedtls_ctr_drbg_random, &m_ctr_drbg,
+                                                MBEDTLS_RSA_PUBLIC, m_SharedSecret.len,
+                                                m_SharedSecret.key, (unsigned char*)&encryptedSS[0]);
+                if (ret != 0) {
+                    mbedtls_pk_free(&pk);
+                    return false;
+                }
 
-        return result;
-    }
+                // Encrypt the verify token with public key
+                ret = mbedtls_rsa_pkcs1_encrypt(rsa, mbedtls_ctr_drbg_random, &m_ctr_drbg,
+                                                MBEDTLS_RSA_PUBLIC, verifyToken.length(),
+                                                (const unsigned char*)verifyToken.c_str(),
+                                                (unsigned char*)&encryptedToken[0]);
 
-    DataBuffer decrypt(const DataBuffer& buffer) {
-        DataBuffer result;
-        int size = 0;
+                mbedtls_pk_free(&pk);
+                if (ret != 0) return false;
 
-        result.Resize(buffer.GetSize() + m_BlockSize);
-        EVP_DecryptUpdate(m_DecryptCTX, &result[0], &size, &buffer[0], buffer.GetSize());
-        result.Resize(size);
+                // Initialize AES-128-CFB8 encryption and decryption
+                if (m_EncryptCTX.setkey_enc(m_SharedSecret.key, 128) != 0)
+                    return false;
 
-        return result;
-    }
+                if (m_DecryptCTX.setkey_enc(m_SharedSecret.key, 128) != 0) // CFB8 uses encryption key for both
+                    return false;
 
-    std::string GetSharedSecret() const {
-        return std::string((char*)m_SharedSecret.key, m_SharedSecret.len);
-    }
+                // Set IV (same as key for Minecraft)
+                m_EncryptCTX.set_iv(m_SharedSecret.key);
+                m_DecryptCTX.set_iv(m_SharedSecret.key);
 
-    protocol::packets::out::EncryptionResponsePacket* GenerateResponsePacket() const {
-        return m_ResponsePacket;
-    }
-};
+                m_ResponsePacket = new protocol::packets::out::EncryptionResponsePacket(encryptedSS, encryptedToken);
+                return true;
+            }
 
-EncryptionStrategyAES::EncryptionStrategyAES(const std::string& publicKey, const std::string& verifyToken) {
-    m_Impl = new Impl(publicKey, verifyToken);
-}
+        public:
+            Impl(const std::string& publicKey, const std::string& verifyToken)
+                    : m_ResponsePacket(nullptr)
+            {
+                m_PublicKey.key = nullptr;
+                Initialize(publicKey, verifyToken);
+            }
 
-EncryptionStrategyAES::~EncryptionStrategyAES() {
-    delete m_Impl;
-}
+            ~Impl() {
+                if (m_ResponsePacket)
+                    delete m_ResponsePacket;
 
-DataBuffer EncryptionStrategyAES::Encrypt(const DataBuffer& buffer) {
-    return m_Impl->encrypt(buffer);
-}
+                mbedtls_entropy_free(&m_entropy);
+                mbedtls_ctr_drbg_free(&m_ctr_drbg);
+            }
 
-DataBuffer EncryptionStrategyAES::Decrypt(const DataBuffer& buffer) {
-    return m_Impl->decrypt(buffer);
-}
+            DataBuffer encrypt(const DataBuffer& buffer) {
+                DataBuffer result;
+                result.Resize(buffer.GetSize());
 
-std::string EncryptionStrategyAES::GetSharedSecret() const {
-    return m_Impl->GetSharedSecret();
-}
+                int ret = m_EncryptCTX.crypt_cfb8(MBEDTLS_AES_ENCRYPT, buffer.GetSize(),
+                                                  &result[0], &buffer[0]);
+                if (ret != 0) {
+                    result.Resize(0);
+                }
 
-protocol::packets::out::EncryptionResponsePacket* EncryptionStrategyAES::GenerateResponsePacket() const {
-    return m_Impl->GenerateResponsePacket();
-}
+                return result;
+            }
 
-} // ns core
+            DataBuffer decrypt(const DataBuffer& buffer) {
+                DataBuffer result;
+                result.Resize(buffer.GetSize());
+
+                int ret = m_DecryptCTX.crypt_cfb8(MBEDTLS_AES_DECRYPT, buffer.GetSize(),
+                                                  &result[0], &buffer[0]);
+                if (ret != 0) {
+                    result.Resize(0);
+                }
+
+                return result;
+            }
+
+            std::string GetSharedSecret() const {
+                return std::string((char*)m_SharedSecret.key, m_SharedSecret.len);
+            }
+
+            protocol::packets::out::EncryptionResponsePacket* GenerateResponsePacket() const {
+                return m_ResponsePacket;
+            }
+        };
+
+        EncryptionStrategyAES::EncryptionStrategyAES(const std::string& publicKey, const std::string& verifyToken) {
+            m_Impl = new Impl(publicKey, verifyToken);
+        }
+
+        EncryptionStrategyAES::~EncryptionStrategyAES() {
+            delete m_Impl;
+        }
+
+        DataBuffer EncryptionStrategyAES::Encrypt(const DataBuffer& buffer) {
+            return m_Impl->encrypt(buffer);
+        }
+
+        DataBuffer EncryptionStrategyAES::Decrypt(const DataBuffer& buffer) {
+            return m_Impl->decrypt(buffer);
+        }
+
+        std::string EncryptionStrategyAES::GetSharedSecret() const {
+            return m_Impl->GetSharedSecret();
+        }
+
+        protocol::packets::out::EncryptionResponsePacket* EncryptionStrategyAES::GenerateResponsePacket() const {
+            return m_Impl->GenerateResponsePacket();
+        }
+
+    } // ns core
 } // ns mc
