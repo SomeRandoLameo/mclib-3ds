@@ -95,3 +95,71 @@ install(DIRECTORY mclib/include DESTINATION include)
 
 configure_file(mclib.pc.in mclib.pc @ONLY)
 install(FILES ${CMAKE_BINARY_DIR}/mclib.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)
+
+
+#
+# --- 3DS Client Build Target ---
+#
+
+set(CLIENT_NAME "mclib-client")
+set(CLIENT_DESC "Test client using mclib")
+set(CLIENT_AUTHOR "SomeRandoLameo")
+set(CLIENT_ICON "${CMAKE_SOURCE_DIR}/icon.png")
+set(CLIENT_ROMFS "${CMAKE_SOURCE_DIR}/romfs")
+
+
+file(GLOB CLIENT_SRC
+        "${CMAKE_SOURCE_DIR}/client/*.cpp"
+)
+
+
+add_executable(${CLIENT_NAME}
+        ${CLIENT_SRC}
+)
+
+
+target_include_directories(${CLIENT_NAME} PUBLIC
+        client
+        mclib/include
+        ${DEVKITPRO}/portlibs/3ds/include
+)
+
+
+target_link_libraries(${CLIENT_NAME} PUBLIC
+        mclib
+        ctru
+        citro3d
+        z
+        m
+)
+
+
+target_compile_options(${CLIENT_NAME} PUBLIC
+        -Wno-changes-meaning
+)
+
+# --- 3DSX Metadata & Build ---
+ctr_generate_smdh(
+        ${CMAKE_BINARY_DIR}/${CLIENT_NAME}.smdh
+        NAME "${CLIENT_NAME}"
+        DESCRIPTION "${CLIENT_DESC}"
+        AUTHOR "${CLIENT_AUTHOR}"
+        ICON "${CLIENT_ICON}"
+)
+
+ctr_create_3dsx(
+        ${CLIENT_NAME}
+        OUTPUT "${CMAKE_BINARY_DIR}/${CLIENT_NAME}.3dsx"
+        SMDH "${CMAKE_BINARY_DIR}/${CLIENT_NAME}.smdh"
+        ROMFS "${CLIENT_ROMFS}"
+)
+
+# "Send" Target (3dslink)
+add_custom_target(
+        send-client
+        COMMAND 3dslink -a "${3DS_IP}" "${CMAKE_BINARY_DIR}/${CLIENT_NAME}.3dsx"
+        COMMENT "Sending client to 3DS..."
+)
+
+message(STATUS "3DS Client target '${CLIENT_NAME}' enabled. ")
+

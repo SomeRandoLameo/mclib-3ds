@@ -1,5 +1,8 @@
 #include "Logger.h"
+#include "BlockPlacer.h"
+#include "SneakEnforcer.h"
 
+#include <3ds.h>
 #include <mclib/common/Common.h>
 #include <mclib/core/Client.h>
 #include <mclib/util/Forge.h>
@@ -28,6 +31,10 @@ const bool useProfileToken = false;
 int run(mc::protocol::Version versions, mc::util::ForgeHandler& forge);
 
 int main(void) {
+
+    gfxInitDefault();
+    consoleInit(GFX_TOP, NULL);
+
     mc::util::VersionFetcher versionFetcher(server, port);
 
     std::cout << "Fetching version" << std::endl;
@@ -49,10 +56,11 @@ int run(mc::protocol::Version version, mc::util::ForgeHandler& forge) {
     client.GetPlayerController()->SetHandleFall(true);
     client.GetConnection()->GetSettings()
         .SetMainHand(mc::MainHand::Right)
-        .SetViewDistance(16);
+        .SetViewDistance(static_cast<s32>(16));
 
     example::Logger logger(&client, &dispatcher);
-
+    example::SneakEnforcer enforcer(&client);
+    //example::BlockPlacer placer(&dispatcher, &client, client.GetPlayerController(),client.GetWorld());
     try {
         std::cout << "Logging in." << std::endl;
 
