@@ -1,6 +1,7 @@
 #include "Logger.h"
 #include "BlockPlacer.h"
 #include "SneakEnforcer.h"
+#include "ChatManager.h"
 
 #include <3ds.h>
 #include <mclib/common/Common.h>
@@ -20,11 +21,13 @@
 
 namespace {
 
-const std::string server("127.0.0.1");
-const u16 port = 25565;
-const std::string username("testplayer");
-const std::string password("");
-const bool useProfileToken = false;
+    const std::string server("172.20.10.14");
+    const u16 port = 25565;
+    const std::string username("testplayer");
+    const std::string password("");
+    const bool useProfileToken = false;
+
+    bool showChat = true;
 
 } // ns
 
@@ -55,12 +58,14 @@ int run(mc::protocol::Version version, mc::util::ForgeHandler& forge) {
 
     client.GetPlayerController()->SetHandleFall(true);
     client.GetConnection()->GetSettings()
-        .SetMainHand(mc::MainHand::Right)
-        .SetViewDistance(static_cast<s32>(16));
+            .SetMainHand(mc::MainHand::Right)
+            .SetViewDistance(static_cast<s32>(16));
 
-    example::Logger logger(&client, &dispatcher);
-    example::SneakEnforcer enforcer(&client);
-    //example::BlockPlacer placer(&dispatcher, &client, client.GetPlayerController(),client.GetWorld());
+    //example::Logger logger(&client, &dispatcher);
+    //example::SneakEnforcer enforcer(&client);
+
+    example::ChatManager chatManager(&client, &dispatcher);
+
     try {
         std::cout << "Logging in." << std::endl;
 

@@ -115,6 +115,8 @@ file(GLOB CLIENT_SRC
 
 add_executable(${CLIENT_NAME}
         ${CLIENT_SRC}
+        client/ChatManager.cpp
+        client/ChatManager.h
 )
 
 
