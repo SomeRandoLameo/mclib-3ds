@@ -42,8 +42,8 @@ namespace example {
             } else {
                 std::cout << "Bad slot index." << std::endl;
             }
-        } else if (message.find("!find ") != std::string::npos) {
-            std::string toFind = message.substr(message.find("!find ") + 6);
+        } else if (message.find("!find") != std::string::npos) {
+            std::string toFind = message.substr(message.find("!find") + 6);
 
             s32 itemId = strtol(toFind.c_str(), nullptr, 10);
             mc::inventory::Inventory* inv = m_Client->GetInventoryManager()->GetPlayerInventory();
@@ -63,12 +63,29 @@ namespace example {
 
             m_Client->GetConnection()->SendPacket(&packet);
         } else if (message.find("!getblock") != std::string::npos) {
-            auto chunkpos = mc::Vector3i(0,0,0);
-            auto blockpos = mc::Vector3i(0,3,0);
+            auto playerPos = m_Client->GetPlayerController()->GetPosition();
 
-            auto readBlockPos = m_Client->GetWorld()->GetChunk(chunkpos)->GetBlock(blockpos);
-            std::cout << "Block " << readBlockPos->GetName() << " : " << readBlockPos->GetType() << " in chunk " << to_string(chunkpos) <<" at pos "<< to_string(blockpos) << std::endl;
+            auto chunkpos = mc::ToVector3i(mc::Vector3d(
+                    playerPos.x,
+                    0,
+                    playerPos.z
+            ));
 
+            auto blockpos = mc::ToVector3i(mc::Vector3d(
+                    playerPos.x,
+                    playerPos.y - 1,
+                    playerPos.z
+            ));
+
+            auto relativeBlockPos = mc::Vector3i(
+                    blockpos.x & 15,
+                    blockpos.y,
+                    blockpos.z & 15
+            );
+
+            auto readBlockPos = m_Client->GetWorld()->GetChunk(chunkpos)->GetBlock(relativeBlockPos);
+            std::cout << "Block " << readBlockPos->GetName() << " : " << readBlockPos->GetType()
+                      << " in chunk " << to_string(chunkpos) << " at pos " << to_string(blockpos) << std::endl;
         }
     }
 
