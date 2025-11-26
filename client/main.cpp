@@ -21,7 +21,7 @@
 
 namespace {
 
-    const std::string server("172.20.10.14");
+    const std::string server("192.168.2.176");
     const u16 port = 25565;
     const std::string username("testplayer");
     const std::string password("");

@@ -62,6 +62,13 @@ namespace example {
             mc::protocol::packets::out::ChatPacket packet(inputText);
 
             m_Client->GetConnection()->SendPacket(&packet);
+        } else if (message.find("!getblock") != std::string::npos) {
+            auto chunkpos = mc::Vector3i(0,0,0);
+            auto blockpos = mc::Vector3i(0,3,0);
+
+            auto readBlockPos = m_Client->GetWorld()->GetChunk(chunkpos)->GetBlock(blockpos);
+            std::cout << "Block " << readBlockPos->GetName() << " : " << readBlockPos->GetType() << " in chunk " << to_string(chunkpos) <<" at pos "<< to_string(blockpos) << std::endl;
+
         }
     }
 
