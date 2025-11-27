@@ -86,6 +86,8 @@ namespace example {
             auto readBlockPos = m_Client->GetWorld()->GetChunk(chunkpos)->GetBlock(relativeBlockPos);
             std::cout << "Block " << readBlockPos->GetName() << " : " << readBlockPos->GetType()
                       << " in chunk " << to_string(chunkpos) << " at pos " << to_string(blockpos) << std::endl;
+        }else if (message.find("!exit") != std::string::npos) {
+            exit(0);
         }
     }
 
