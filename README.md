@@ -1,12 +1,11 @@
 # mclib-3ds
-C++ library for connecting to Minecraft servers.
+C++ library for connecting to Minecraft servers on the Nintendo3DS
 
 ## Features
 - Full protocol for Minecraft 1.10 through 1.12.2
-- Premium and offline mode
+- Premium (*THE MS AUTH IS NOT YET SUPPORTED*) and offline mode
 - Yggdrasil API (*THE MS AUTH IS NOT YET SUPPORTED*)
 - Logging in with passwords or tokens (*THE MS AUTH IS NOT YET SUPPORTED*)
-- Reading and using token from launcher
 - Encryption
 - Compression
 - Log in to Forge servers (*THE MS AUTH IS NOT YET SUPPORTED*)
@@ -21,17 +20,15 @@ C++ library for connecting to Minecraft servers.
 ## Building
 
 Dependencies:  
-- C++14 compiler (g++/clang/msvc 2017)
-- openssl
-- libcurl
+- C++ compiler (cmake)
+- 3DS Portlibs
 
-Ubuntu:  
-`sudo apt-get install clang libssl-dev libcurl4-openssl-dev`  
-`make`
-
-Windows:  
-`unzip lib.zip`  
-Open `mclib.sln` with Visual Studio 2017 and build
+TODOS:
+| Feature | State | Comment |
+|---------|-------|---------|
+| Add more usage examples | in progress | More examples would be nice in order to propperly understand MCLib |
+| Add more versions | planned | Would be really cool to connect from "the oldest servers supported version" to "the newest server versions" |
+| 3DS performance optimisations | planned | This library needs to be debloated heavily, if possible.  |
 
 ## Examples
 - [terracotta](https://github.com/plushmonkey/Terracotta) : OpenGL client
